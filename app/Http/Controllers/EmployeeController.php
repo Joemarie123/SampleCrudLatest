@@ -13,5 +13,5 @@ class EmployeeController extends Controller
     return response()->json(['Employees' => $employees], 200);
     }
 
-    
+
 }

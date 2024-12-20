@@ -9,6 +9,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Crypt;
+use Symfony\Component\HttpFoundation\Response;
+
 
 
 class AuthController extends Controller
@@ -16,36 +18,83 @@ class AuthController extends Controller
     //
     public function Token_Register(Request $request)
     {
-        $data = $request->validate([
-            'name' => 'required|string',
-            'email' => 'required|string|unique:users,email',
-            'password' => 'required|string|confirmed'
-        ]);
+   // Validate incoming request
+   $validatedData = $request->validate([
+    'name' => 'required|string|max:255',
+    'email' => 'required|string|email|max:255|unique:users',
+    'password' => 'required|string|min:8', // Requires 'password_confirmation'
+]);
 
-        // Hash ang password bago ito ipasa sa stored procedure
-        $hashedPassword = bcrypt($data['password']);
+try {
+    // Create the user
+    $user = User::create([
+        'name' => $validatedData['name'],
+        'email' => $validatedData['email'],
+        'password' => Hash::make($validatedData['password']),
+    ]);
 
-        // Tawagin ang stored procedure
-        DB::statement('CALL AddUser(?, ?, ?)', [
-            $data['name'],
-            $data['email'],
-            $hashedPassword
-        ]);
-
-        // Kunin ang bagong user
-        $user = User::where('email', $data['email'])->first();
-
-        // Mag-create ng token at i-attach ito sa httpOnly cookie
-        $token = $user->createToken('sanctum-token')->plainTextToken;
-
-
-        return response()->json([
-            'message' => 'Registration successful!',
-            'user' => $user
-        ])->cookie(
-            'sanctum_token', $token, 60 * 24, '/', null, true, true, true, 'None'
-        );
+    // Return a success response
+    return response()->json([
+        'status' => true,
+        'message' => 'User registered successfully',
+        'user' => $user,
+    ], 201);
+} catch (\Exception $e) {
+    // Handle errors
+    return response()->json([
+        'status' => false,
+        'message' => 'Registration failed',
+        'error' => $e->getMessage(),
+    ], 500);
+}
     }
+
+    public function showall()
+    {
+        $employees = Employee::all();
+    return response()->json(['Employees' => $employees], 200);
+    }
+
+    public function Token_Logout(Request $request)
+    {
+        $cookie = Cookie::forget('jwt');
+
+        return response([
+            'message' => 'Success'
+        ])->withCookie($cookie);
+    }
+
+
+
+    public function NewLogin(Request $request)
+    {
+        if (!Auth::attempt($request->only('email','password'))) {
+            return response([
+                'status' => false,
+                'message' => 'Invalid Credentials!'
+            ], Response::HTTP_UNAUTHORIZED);
+        }
+
+        $user = Auth::user();
+
+        $token = $user->createToken('my-secret-token')->plainTextToken;
+
+        // I-define ang cookie na may SameSite=None at Secure
+        $cookie = cookie('jwt', $token, 60 * 24, null, null, true, true, false, 'None');
+
+        return response([
+            'status' => true,
+            'message' => 'Login successful',
+           // 'token' => $token
+        ])->withCookie($cookie);
+    }
+
+
+    public function user(Request $request)
+    {
+        return Auth::user();
+    }
+
 
     public function Token_Login(Request $request)
     {
@@ -123,17 +172,6 @@ class AuthController extends Controller
 
 
 
-   public function Token_Logout(Request $request)
-{
-    // I-delete ang lahat ng tokens ng authenticated user
-    auth()->user()->tokens()->delete();
-
-    // Magbalik ng response na may message at alisin ang cookies
-    return response()->json([
-        "message" => 'Logout Successfully'
-    ])->cookie('sanctum_token', '', -1) // Alisin ang sanctum_token
-      ->cookie('user_id', '', -1); // Alisin ang user_id
-}
 
 
 
