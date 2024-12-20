@@ -16,7 +16,7 @@ class EnsureTokenIsValid
     public function handle(Request $request, Closure $next): Response
     {
         // Retrieve the 'jwt' cookie
-        $jwtCookie = $request->cookie('jwt');
+        $jwtCookie = $request->cookie('auth_token');
 
         // Check if the cookie exists
         if (!$jwtCookie) {

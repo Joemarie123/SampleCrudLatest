@@ -57,11 +57,21 @@ try {
 
     public function Token_Logout(Request $request)
     {
-        $cookie = Cookie::forget('jwt');
+        // Kunin ang authenticated na user
+    $user = Auth::user();
 
-        return response([
-            'message' => 'Success'
-        ])->withCookie($cookie);
+    if ($user) {
+        // I-revoke lahat ng token ng user
+        $user->tokens()->delete();
+    }
+
+    // Burahin ang JWT cookie
+    $cookie = cookie()->forget('jwt');
+
+    return response([
+        'status' => true,
+        'message' => 'Logout successful'
+    ])->withCookie($cookie);
     }
 
 
@@ -80,7 +90,7 @@ try {
         $token = $user->createToken('my-secret-token')->plainTextToken;
 
         // I-define ang cookie na may SameSite=None at Secure
-        $cookie = cookie('jwt', $token, 60 * 24, null, null, true, true, false, 'None');
+        $cookie = cookie('auth_token', $token, 60 * 24, null, null, true, true, false, 'None');
 
         return response([
             'status' => true,
